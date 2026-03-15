@@ -1,0 +1,946 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Resource Room Log</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #f5f3ee;
+    --surface: #ffffff;
+    --surface2: #f0ede6;
+    --border: #e2ddd4;
+    --text: #1a1916;
+    --text2: #6b6760;
+    --text3: #9e9a94;
+    --accent: #2d5a3d;
+    --accent-light: #e8f0ea;
+    --red: #c0392b;
+    --red-light: #fdf0ee;
+    --amber: #92600a;
+    --amber-light: #fef8ed;
+    --mono: 'DM Mono', monospace;
+    --sans: 'DM Sans', sans-serif;
+    --radius: 8px;
+    --shadow: 0 1px 3px rgba(0,0,0,0.08);
+    --shadow-md: 0 4px 12px rgba(0,0,0,0.1);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: var(--sans); background: var(--bg); color: var(--text); min-height: 100vh; }
+
+  /* SYNC BAR */
+  .sync-bar {
+    background: var(--surface); border-bottom: 1px solid var(--border);
+    padding: 7px 24px; display: flex; align-items: center; justify-content: space-between;
+    font-family: var(--mono); font-size: 11px;
+  }
+  .sync-status { display: flex; align-items: center; gap: 7px; }
+  .sync-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--text3); flex-shrink: 0; transition: background 0.3s; }
+  .sync-dot.synced { background: #2d8a4e; }
+  .sync-dot.syncing { background: var(--amber); animation: pulse 1s infinite; }
+  .sync-dot.error { background: var(--red); }
+  @keyframes pulse { 0%,100%{opacity:1}50%{opacity:0.3} }
+  #sync-text { color: var(--text3); }
+  .sync-right { color: var(--text3); }
+  .refresh-btn {
+    background: none; border: 1px solid var(--border); color: var(--text2);
+    font-family: var(--mono); font-size: 11px; padding: 2px 8px;
+    border-radius: 4px; cursor: pointer;
+  }
+  .refresh-btn:hover { background: var(--accent-light); color: var(--accent); border-color: var(--accent); }
+
+  /* HEADER */
+  .header {
+    background: var(--accent); color: white; padding: 14px 24px;
+    display: flex; align-items: center; justify-content: space-between;
+    position: sticky; top: 0; z-index: 100; box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+  }
+  .header-title { font-family: var(--mono); font-size: 14px; font-weight: 500; letter-spacing: 0.05em; opacity: 0.9; }
+  .header-sub { font-size: 11px; opacity: 0.6; margin-top: 1px; font-family: var(--mono); }
+  .date-nav { display: flex; align-items: center; gap: 0; }
+  .nav-btn {
+    background: rgba(255,255,255,0.15); border: none; color: white;
+    width: 32px; height: 32px; border-radius: var(--radius); cursor: pointer;
+    font-size: 16px; display: flex; align-items: center; justify-content: center; transition: background 0.15s;
+  }
+  .nav-btn:hover { background: rgba(255,255,255,0.25); }
+  .date-display { font-family: var(--mono); font-size: 13px; font-weight: 500; padding: 0 14px; cursor: pointer; white-space: nowrap; }
+  .today-btn {
+    background: rgba(255,255,255,0.2); border: none; color: white;
+    font-family: var(--mono); font-size: 11px; padding: 4px 10px;
+    border-radius: 20px; cursor: pointer; margin-left: 8px; transition: background 0.15s;
+  }
+  .today-btn:hover { background: rgba(255,255,255,0.3); }
+  input[type="date"]#datepicker { position: absolute; opacity: 0; pointer-events: none; width: 1px; height: 1px; }
+  .header-right { display: flex; align-items: center; gap: 8px; }
+  .header-btn {
+    background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.3);
+    color: white; font-family: var(--sans); font-size: 12px; padding: 6px 12px;
+    border-radius: var(--radius); cursor: pointer; transition: background 0.15s;
+  }
+  .header-btn:hover { background: rgba(255,255,255,0.25); }
+
+  /* TEACHER BAR */
+  .teacher-bar {
+    background: var(--surface); border-bottom: 1px solid var(--border);
+    padding: 10px 24px; display: flex; align-items: center; gap: 10px;
+  }
+  .teacher-bar label { font-size: 12px; font-family: var(--mono); color: var(--text3); white-space: nowrap; }
+  .teacher-input {
+    border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 5px 10px; font-family: var(--sans); font-size: 13px;
+    color: var(--text); background: var(--bg); outline: none; width: 220px;
+  }
+  .teacher-input:focus { border-color: var(--accent); background: white; }
+  .teacher-saved { font-size: 11px; font-family: var(--mono); color: var(--accent); margin-left: 4px; opacity: 0; transition: opacity 0.3s; }
+  .teacher-saved.show { opacity: 1; }
+
+  /* MAIN */
+  .main { max-width: 1100px; margin: 0 auto; padding: 20px 16px 48px; }
+
+  .day-summary { display: flex; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; }
+  .summary-pill {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 20px; padding: 5px 14px; font-size: 12px;
+    color: var(--text2); font-family: var(--mono);
+  }
+  .summary-pill span { color: var(--accent); font-weight: 500; }
+
+  .history-bar {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 10px 14px;
+    margin-bottom: 16px; display: flex; align-items: center; justify-content: space-between;
+  }
+  .history-label { font-size: 12px; color: var(--text2); font-family: var(--mono); }
+  .history-days { display: flex; gap: 6px; }
+  .history-day {
+    font-family: var(--mono); font-size: 11px; padding: 3px 8px;
+    border-radius: 4px; background: var(--surface2); color: var(--text3);
+    cursor: pointer; border: 1px solid var(--border); transition: all 0.15s;
+  }
+  .history-day:hover { background: var(--accent-light); color: var(--accent); border-color: var(--accent); }
+  .history-day.has-data { color: var(--accent); font-weight: 500; }
+
+  /* PERIOD */
+  .period-section {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 12px; margin-bottom: 16px; overflow: hidden; box-shadow: var(--shadow);
+  }
+  .period-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 16px; background: var(--surface2);
+    border-bottom: 1px solid var(--border); cursor: pointer; user-select: none;
+  }
+  .period-header:hover { background: #ebe7df; }
+  .period-label { font-family: var(--mono); font-size: 13px; font-weight: 500; color: var(--text); display: flex; align-items: center; gap: 10px; }
+  .period-count { font-family: var(--mono); font-size: 11px; background: var(--accent); color: white; padding: 2px 8px; border-radius: 10px; }
+  .period-count.full { background: var(--red); }
+  .period-count.empty { background: var(--text3); }
+  .period-toggle { font-size: 12px; color: var(--text3); transition: transform 0.2s; }
+  .period-toggle.collapsed { transform: rotate(-90deg); }
+
+  /* SLOT TABLE — 9 columns */
+  .slot-headers, .slot-row {
+    display: grid;
+    grid-template-columns: 32px 1fr 100px 110px 90px 70px 70px 80px 32px;
+    align-items: center;
+    border-bottom: 1px solid var(--border);
+  }
+  .slot-row:last-child { border-bottom: none; }
+  .slot-row { min-height: 42px; transition: background 0.1s; }
+  .slot-row:hover { background: #fafaf8; }
+  .slot-row.occupied { background: var(--accent-light); }
+  .slot-row.occupied:hover { background: #dde8df; }
+  .slot-row.override { background: var(--amber-light); }
+  .slot-row.override:hover { background: #fdf0d8; }
+
+  .slot-headers { padding: 6px 0; background: var(--surface2); }
+  .col-head {
+    font-family: var(--mono); font-size: 10px; color: var(--text3);
+    padding: 0 6px; text-transform: uppercase; letter-spacing: 0.05em;
+  }
+
+  .slot-num { text-align: center; font-family: var(--mono); font-size: 11px; color: var(--text3); padding: 0 6px; }
+
+  /* STUDENT CELL */
+  .student-cell { padding: 4px 6px; position: relative; }
+  .student-input-wrap { position: relative; }
+  .student-input {
+    width: 100%; border: none; background: transparent;
+    font-family: var(--sans); font-size: 13px; color: var(--text);
+    padding: 6px 4px; outline: none; cursor: pointer;
+  }
+  .student-input::placeholder { color: var(--text3); font-size: 12px; }
+  .student-input:focus { background: white; border-radius: 4px; cursor: text; }
+  .override-badge {
+    font-size: 9px; font-family: var(--mono); background: var(--amber);
+    color: white; padding: 1px 4px; border-radius: 3px; margin-left: 4px; vertical-align: middle;
+  }
+
+  /* DROPDOWN */
+  .dropdown {
+    position: absolute; top: calc(100% + 2px); left: 0; right: 0;
+    background: white; border: 1px solid var(--border); border-radius: var(--radius);
+    box-shadow: var(--shadow-md); z-index: 200; max-height: 200px; overflow-y: auto; display: none;
+  }
+  .dropdown.open { display: block; }
+  .dropdown-item {
+    padding: 8px 12px; font-size: 13px; cursor: pointer;
+    border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between;
+  }
+  .dropdown-item:last-child { border-bottom: none; }
+  .dropdown-item:hover { background: var(--accent-light); }
+  .dropdown-item.override-option { color: var(--amber); font-style: italic; font-size: 12px; }
+  .dropdown-item .grade-tag { font-family: var(--mono); font-size: 10px; color: var(--text3); background: var(--surface2); padding: 1px 6px; border-radius: 3px; }
+  .dropdown-empty { padding: 10px 12px; font-size: 12px; color: var(--text3); font-style: italic; }
+
+  /* GENERIC CELL */
+  .cell-wrap { padding: 4px 6px; }
+  .cell-select, .cell-input {
+    width: 100%; border: none; background: transparent;
+    font-family: var(--sans); font-size: 12px; color: var(--text2);
+    padding: 5px 4px; outline: none; cursor: pointer; -webkit-appearance: none;
+  }
+  .cell-select:focus, .cell-input:focus { background: white; border-radius: 4px; }
+  .cell-input::placeholder { color: var(--text3); }
+
+  /* END TIME — computed, read-only */
+  .end-time-cell { padding: 4px 6px; }
+  .end-time-val {
+    font-family: var(--mono); font-size: 12px; color: var(--accent);
+    font-weight: 500; padding: 5px 4px;
+  }
+  .end-time-val.empty { color: var(--text3); font-weight: 400; }
+
+  /* CLEAR BTN */
+  .clear-btn {
+    width: 26px; height: 26px; border: none; background: transparent;
+    color: var(--text3); cursor: pointer; border-radius: 4px; font-size: 14px;
+    display: flex; align-items: center; justify-content: center; margin: 0 3px;
+    transition: all 0.15s; opacity: 0;
+  }
+  .slot-row:hover .clear-btn,
+  .slot-row.occupied .clear-btn,
+  .slot-row.override .clear-btn { opacity: 1; }
+  .clear-btn:hover { background: var(--red-light); color: var(--red); }
+
+  .add-row-btn {
+    display: flex; align-items: center; gap: 6px; padding: 10px 16px;
+    background: none; border: none; color: var(--accent); font-family: var(--sans);
+    font-size: 12px; cursor: pointer; width: 100%; transition: background 0.15s;
+  }
+  .add-row-btn:hover { background: var(--accent-light); }
+  .add-row-btn::before { content: '+'; font-size: 16px; font-weight: 300; }
+
+  /* MODAL */
+  .modal-overlay {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,0.4); z-index: 500;
+    align-items: center; justify-content: center;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal {
+    background: white; border-radius: 12px; width: 480px;
+    max-height: 80vh; display: flex; flex-direction: column;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+  }
+  .modal-header {
+    padding: 18px 20px 14px; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .modal-title { font-size: 15px; font-weight: 600; }
+  .modal-close { background: none; border: none; font-size: 20px; cursor: pointer; color: var(--text3); }
+  .modal-body { padding: 16px 20px; overflow-y: auto; flex: 1; }
+  .modal-hint { font-size: 12px; color: var(--text3); margin-bottom: 12px; line-height: 1.6; }
+  .roster-textarea {
+    width: 100%; height: 320px; border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 12px; font-family: var(--mono); font-size: 12px; color: var(--text);
+    resize: vertical; outline: none; line-height: 1.8;
+  }
+  .roster-textarea:focus { border-color: var(--accent); }
+  .modal-footer {
+    padding: 14px 20px; border-top: 1px solid var(--border);
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .modal-count { font-family: var(--mono); font-size: 12px; color: var(--text3); }
+  .save-btn {
+    background: var(--accent); color: white; border: none; padding: 8px 20px;
+    border-radius: var(--radius); font-family: var(--sans); font-size: 13px;
+    cursor: pointer; transition: background 0.15s;
+  }
+  .save-btn:hover { background: #1e3d2a; }
+
+  @media (max-width: 700px) {
+    .slot-headers, .slot-row { grid-template-columns: 28px 1fr 90px 70px 32px; }
+    .col-head:nth-child(3), .col-head:nth-child(5), .col-head:nth-child(6), .col-head:nth-child(7),
+    .slot-row > div:nth-child(3), .slot-row > div:nth-child(5), .slot-row > div:nth-child(6), .slot-row > div:nth-child(7) { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div>
+    <div class="header-title">RESOURCE ROOM LOG</div>
+    <div class="header-sub">OCSB · Murphy</div>
+  </div>
+  <div class="date-nav">
+    <button class="nav-btn" onclick="changeDay(-1)">&#8592;</button>
+    <span class="date-display" onclick="openDatePicker()">Loading...</span>
+    <button class="nav-btn" onclick="changeDay(1)">&#8594;</button>
+    <button class="today-btn" onclick="goToday()">Today</button>
+    <input type="date" id="datepicker" onchange="pickDate(this.value)">
+  </div>
+  <div class="header-right">
+    <button class="header-btn" onclick="openRoster()">&#9998; Edit Roster</button>
+  </div>
+</div>
+
+<!-- SYNC BAR -->
+<div class="sync-bar" id="sync-bar">
+  <div class="sync-status">
+    <div class="sync-dot" id="sync-dot"></div>
+    <span id="sync-text">Connecting...</span>
+  </div>
+  <span class="sync-right">Shared · Lisa · Nan · Julie &nbsp;·&nbsp; <button class="refresh-btn" onclick="syncDay()">&#8635; Refresh</button></span>
+</div>
+
+<!-- TEACHER BAR -->
+<div class="teacher-bar">
+  <label>Your name (remembered):</label>
+  <input class="teacher-input" type="text" id="teacher-name" placeholder="e.g. Murphy, C." oninput="saveTeacher()" autocomplete="off">
+  <span class="teacher-saved" id="teacher-saved">&#10003; Saved</span>
+</div>
+
+<div class="main">
+  <div class="history-bar">
+    <span class="history-label">Recent days:</span>
+    <div class="history-days" id="history-days"></div>
+  </div>
+  <div class="day-summary" id="day-summary"></div>
+  <div id="periods-container"></div>
+</div>
+
+<!-- Roster Modal -->
+<div class="modal-overlay" id="roster-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title">Resource Room Roster</span>
+      <button class="modal-close" onclick="closeRoster()">&#215;</button>
+    </div>
+    <div class="modal-body">
+      <p class="modal-hint">One student per line. Format: <strong>Lastname, Firstname (Grade)</strong><br>
+      e.g. <code>Smith, Emma (10)</code> &nbsp;·&nbsp; <code>Jones, Marcus (9)</code><br>
+      Students not on the list can still be added as overrides (e.g. absent student writing a test).</p>
+      <textarea class="roster-textarea" id="roster-textarea" placeholder="Smith, Emma (10)&#10;Jones, Marcus (9)&#10;Brown, Sarah (11)"></textarea>
+    </div>
+    <div class="modal-footer">
+      <span class="modal-count" id="roster-count">0 students</span>
+      <button class="save-btn" onclick="saveRoster()">Save Roster</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── CONSTANTS ─────────────────────────────────────────────────────────────
+const PERIODS = [
+  { key: 'p1', label: 'Period 1' },
+  { key: 'p2', label: 'Period 2' },
+  { key: 'p3', label: 'Period 3' },
+  { key: 'p4', label: 'Period 4' },
+];
+
+const TASKS = ['', 'Test', 'Quiz', 'Assignment', 'Work period'];
+
+// Duration options: label → minutes
+const DURATIONS = [
+  { label: '', mins: 0 },
+  { label: 'Regular (75 min)', mins: 75 },
+  { label: 'Extended (110 min)', mins: 110 },
+  { label: 'Double (150 min)', mins: 150 },
+];
+
+// Generate times 8:00am – 2:00pm in 10-min intervals
+function buildTimes() {
+  const times = [''];
+  for (let h = 8; h <= 14; h++) {
+    for (let m = 0; m < 60; m += 10) {
+      if (h === 14 && m > 0) break;
+      const suffix = h < 12 ? 'am' : (h === 12 ? 'pm' : 'pm');
+      const display12 = h <= 12 ? h : h - 12;
+      times.push(`${display12}:${String(m).padStart(2,'0')}${suffix}`);
+    }
+  }
+  return times;
+}
+const TIMES = buildTimes();
+
+// Convert time string to minutes since midnight
+function timeToMins(t) {
+  if (!t) return null;
+  const pm = t.includes('pm');
+  const am = t.includes('am');
+  const clean = t.replace('am','').replace('pm','');
+  const [h, m] = clean.split(':').map(Number);
+  let hrs = h;
+  if (pm && h !== 12) hrs += 12;
+  if (am && h === 12) hrs = 0;
+  return hrs * 60 + m;
+}
+
+// Convert minutes since midnight to time string
+function minsToTime(mins) {
+  if (mins === null) return '';
+  const h24 = Math.floor(mins / 60);
+  const m = mins % 60;
+  const suffix = h24 < 12 ? 'am' : 'pm';
+  const h12 = h24 === 0 ? 12 : (h24 <= 12 ? h24 : h24 - 12);
+  return `${h12}:${String(m).padStart(2,'0')}${suffix}`;
+}
+
+function calcEndTime(startTime, durationLabel) {
+  const dur = DURATIONS.find(d => d.label === durationLabel);
+  if (!startTime || !dur || dur.mins === 0) return '';
+  const startMins = timeToMins(startTime);
+  if (startMins === null) return '';
+  return minsToTime(startMins + dur.mins);
+}
+
+// ── GOOGLE SHEETS CONFIG ──────────────────────────────────────────────────
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwzN39oJSX7KRNR1iK8WnmcLL5CpMMvfDWAr2yTX3CRzRfzV5yxEP27tTP00GkPGEM/exec';
+
+function setSyncStatus(state, msg) {
+  const dot = document.getElementById('sync-dot');
+  const txt = document.getElementById('sync-text');
+  dot.className = 'sync-dot ' + state;
+  txt.textContent = msg;
+}
+
+function apiCall(params) {
+  const url = SCRIPT_URL + '?' + new URLSearchParams(params).toString();
+  return fetch(url).then(r => r.json()).catch(err => ({ error: err.toString() }));
+}
+
+// ── STATE ─────────────────────────────────────────────────────────────────
+let currentDate = todayStr();
+let allData = {};
+let roster = [];
+let teacherName = '';
+
+function todayStr() {
+  return new Date().toISOString().split('T')[0];
+}
+function formatDate(str) {
+  const d = new Date(str + 'T12:00:00');
+  return d.toLocaleDateString('en-CA', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+}
+function formatDateShort(str) {
+  const d = new Date(str + 'T12:00:00');
+  return d.toLocaleDateString('en-CA', { month: 'short', day: 'numeric' });
+}
+
+// ── LOCAL STORAGE — roster + teacher name only ────────────────────────────
+function saveLocal() {
+  try {
+    localStorage.setItem('rrlog_roster_v3', JSON.stringify(roster));
+    localStorage.setItem('rrlog_teacher_v3', teacherName);
+  } catch(e) {}
+}
+function loadLocal() {
+  try {
+    const r = localStorage.getItem('rrlog_roster_v3');
+    const t = localStorage.getItem('rrlog_teacher_v3');
+    if (r) roster = JSON.parse(r);
+    if (t) teacherName = t;
+  } catch(e) {}
+}
+
+// Keep save() working for local allData (used by updateSlot internals)
+function save() {
+  try {
+    localStorage.setItem('rrlog_data_v3', JSON.stringify(allData));
+    saveLocal();
+  } catch(e) {}
+  // Also push current slot to Sheet after local save
+}
+
+function load() {
+  try {
+    const d = localStorage.getItem('rrlog_data_v3');
+    if (d) allData = JSON.parse(d);
+    loadLocal();
+  } catch(e) {}
+}
+
+// ── SHEET SYNC ────────────────────────────────────────────────────────────
+let lastEditTime = 0; // timestamp of last local edit
+
+function syncDay() {
+  setSyncStatus('syncing', 'Loading from Sheet...');
+  apiCall({ action: 'read', date: currentDate }).then(data => {
+    if (data.error) { setSyncStatus('error', 'Could not load — check connection'); return; }
+    // Don't overwrite if user edited in the last 5 seconds
+    if (Date.now() - lastEditTime < 5000) {
+      setSyncStatus('synced', 'Synced · ' + new Date().toLocaleTimeString('en-CA', {hour:'2-digit',minute:'2-digit'}));
+      return;
+    }
+    const rows = data.rows || [];
+    // Rebuild allData for this date from Sheet rows
+    if (!allData[currentDate]) getDay(currentDate);
+    PERIODS.forEach(p => {
+      allData[currentDate][p.key] = [];
+      for (let i = 1; i <= 10; i++) allData[currentDate][p.key].push(emptySlot(i));
+    });
+    rows.forEach(row => {
+      const pKey = { 'Period 1':'p1','Period 2':'p2','Period 3':'p3','Period 4':'p4' }[row['Period']];
+      const idx = parseInt(row['Spot']) - 1;
+      if (!pKey || isNaN(idx)) return;
+      while (allData[currentDate][pKey].length <= idx) allData[currentDate][pKey].push(emptySlot(allData[currentDate][pKey].length + 1));
+      allData[currentDate][pKey][idx] = {
+        id: idx + 1,
+        student: row['Student'] || '',
+        grade: String(row['Grade'] || ''),
+        teacher: row['Teacher'] || '',
+        task: row['Task'] || '',
+        startTime: row['Start Time'] || '',
+        duration: row['Duration'] || '',
+        endTime: row['End Time'] || '',
+        notes: row['Notes'] || '',
+        override: row['Override'] === true || row['Override'] === 'TRUE',
+      };
+    });
+    save();
+    renderAllPeriods();
+    updateSummary();
+    updateHistoryBar();
+    setSyncStatus('synced', 'Synced · ' + new Date().toLocaleTimeString('en-CA', {hour:'2-digit',minute:'2-digit'}));
+  });
+}
+
+function pushSlotToSheet(period, idx) {
+  const slot = getDay(currentDate)[period][idx];
+  const periodLabel = PERIODS.find(p => p.key === period).label;
+  setSyncStatus('syncing', 'Saving...');
+  const params = {
+    action: slot.student.trim() ? 'write' : 'clear',
+    date: currentDate, period: periodLabel, spot: idx + 1,
+    student: slot.student || '', grade: slot.grade || '',
+    teacher: slot.teacher || teacherName,
+    task: slot.task || '', startTime: slot.startTime || '',
+    duration: slot.duration || '', endTime: slot.endTime || '',
+    notes: slot.notes || '', override: slot.override ? 'true' : 'false',
+  };
+  apiCall(params).then(data => {
+    if (data.error) { setSyncStatus('error', 'Save failed'); return; }
+    setSyncStatus('synced', 'Saved · ' + new Date().toLocaleTimeString('en-CA', {hour:'2-digit',minute:'2-digit'}));
+  });
+}
+
+function loadRosterFromSheet() {
+  apiCall({ action: 'getRoster' }).then(data => {
+    if (data.roster && data.roster.length > 0) {
+      roster = data.roster;
+      saveLocal();
+      setSyncStatus('synced', 'Ready');
+    } else {
+      setSyncStatus('synced', 'Ready — add students via Edit Roster');
+    }
+  }).catch(() => setSyncStatus('error', 'Could not load roster'));
+}
+
+
+
+// ── DATA ──────────────────────────────────────────────────────────────────
+function emptySlot(i) {
+  return { id: i, student: '', grade: '', override: false, task: '', startTime: '', duration: '', endTime: '', notes: '', teacher: '' };
+}
+function getDay(date) {
+  if (!allData[date]) {
+    allData[date] = {};
+    PERIODS.forEach(p => {
+      allData[date][p.key] = [];
+      for (let i = 1; i <= 10; i++) allData[date][p.key].push(emptySlot(i));
+    });
+  }
+  return allData[date];
+}
+function updateSlot(date, period, idx, field, value) {
+  lastEditTime = Date.now();
+  const slot = getDay(date)[period][idx];
+  slot[field] = value;
+  if (field === 'startTime' || field === 'duration') {
+    slot.endTime = calcEndTime(slot.startTime, slot.duration);
+    const endEl = document.getElementById(`end-${period}-${idx}`);
+    if (endEl) {
+      endEl.textContent = slot.endTime || '—';
+      endEl.className = 'end-time-val' + (slot.endTime ? '' : ' empty');
+    }
+  }
+  save();
+  pushSlotToSheet(period, idx);
+  updateSummary();
+  updateHistoryBar();
+}
+function addSlot(date, period) {
+  const slots = getDay(date)[period];
+  slots.push(emptySlot(slots.length + 1));
+  save();
+  renderPeriod(period);
+  updateSummary();
+}
+function clearSlot(date, period, idx) {
+  getDay(date)[period][idx] = emptySlot(idx + 1);
+  save();
+  pushSlotToSheet(period, idx);
+  renderPeriod(period);
+  updateSummary();
+}
+
+// ── RENDER ────────────────────────────────────────────────────────────────
+function render() {
+  document.querySelector('.date-display').textContent = formatDate(currentDate);
+  document.getElementById('datepicker').value = currentDate;
+  // Load teacher name
+  const tn = document.getElementById('teacher-name');
+  if (tn) tn.value = teacherName;
+  renderAllPeriods();
+  updateSummary();
+  updateHistoryBar();
+}
+
+function renderAllPeriods() {
+  const c = document.getElementById('periods-container');
+  c.innerHTML = '';
+  PERIODS.forEach(p => c.appendChild(buildPeriodEl(p)));
+}
+function renderPeriod(periodKey) {
+  const existing = document.getElementById('period-' + periodKey);
+  const p = PERIODS.find(x => x.key === periodKey);
+  if (existing && p) existing.replaceWith(buildPeriodEl(p));
+}
+
+function buildPeriodEl(p) {
+  const day = getDay(currentDate);
+  const slots = day[p.key];
+  const occupied = slots.filter(s => s.student.trim()).length;
+  const countClass = occupied === 0 ? 'empty' : occupied >= slots.length ? 'full' : '';
+
+  const section = document.createElement('div');
+  section.className = 'period-section';
+  section.id = 'period-' + p.key;
+
+  section.innerHTML = `
+    <div class="period-header" onclick="togglePeriod('${p.key}')">
+      <span class="period-label">
+        ${p.label}
+        <span class="period-count ${countClass}">${occupied} / ${slots.length}</span>
+      </span>
+      <span class="period-toggle" id="toggle-${p.key}">&#9660;</span>
+    </div>
+    <div id="body-${p.key}">
+      <div class="slot-headers">
+        <div class="col-head">#</div>
+        <div class="col-head">Student</div>
+        <div class="col-head">Teacher</div>
+        <div class="col-head">Task</div>
+        <div class="col-head">Start</div>
+        <div class="col-head">Duration</div>
+        <div class="col-head">End</div>
+        <div class="col-head">Notes</div>
+        <div class="col-head"></div>
+      </div>
+      <div id="slots-${p.key}"></div>
+      <button class="add-row-btn" onclick="addSlot('${currentDate}','${p.key}')">Add spot</button>
+    </div>
+  `;
+
+  const table = section.querySelector('#slots-' + p.key);
+  slots.forEach((slot, idx) => table.appendChild(buildSlotRow(p.key, idx, slot)));
+  return section;
+}
+
+function buildSlotRow(periodKey, idx, slot) {
+  const row = document.createElement('div');
+  const hasStudent = slot.student.trim() !== '';
+  row.className = 'slot-row' + (hasStudent ? (slot.override ? ' override' : ' occupied') : '');
+
+  const endVal = slot.endTime || '—';
+  const endEmpty = !slot.endTime;
+
+  // Teacher: default to saved teacher name if slot teacher is empty
+  const teacherVal = slot.teacher || teacherName;
+
+  row.innerHTML = `
+    <div class="slot-num">${idx + 1}</div>
+
+    <div class="student-cell">
+      <div class="student-input-wrap">
+        <input class="student-input" type="text"
+          value="${esc(slot.student)}"
+          placeholder="Select student..."
+          autocomplete="off"
+          data-period="${periodKey}" data-idx="${idx}"
+          oninput="onStudentInput(this)"
+          onfocus="onStudentFocus(this)"
+          onblur="onStudentBlur(this)"
+          onkeydown="onStudentKey(event,this)">
+        ${slot.override ? '<span class="override-badge">OVERRIDE</span>' : ''}
+        <div class="dropdown" id="dd-${periodKey}-${idx}"></div>
+      </div>
+    </div>
+
+    <div class="cell-wrap">
+      <input class="cell-input" type="text"
+        value="${esc(teacherVal)}"
+        placeholder="Teacher..."
+        onchange="updateSlot('${currentDate}','${periodKey}',${idx},'teacher',this.value)">
+    </div>
+
+    <div class="cell-wrap">
+      <select class="cell-select" onchange="updateSlot('${currentDate}','${periodKey}',${idx},'task',this.value)">
+        ${TASKS.map(t => `<option value="${t}" ${slot.task===t?'selected':''}>${t||'— task —'}</option>`).join('')}
+      </select>
+    </div>
+
+    <div class="cell-wrap">
+      <select class="cell-select" onchange="updateSlot('${currentDate}','${periodKey}',${idx},'startTime',this.value)">
+        ${TIMES.map(t => `<option value="${t}" ${slot.startTime===t?'selected':''}>${t||'— start —'}</option>`).join('')}
+      </select>
+    </div>
+
+    <div class="cell-wrap">
+      <select class="cell-select" onchange="updateSlot('${currentDate}','${periodKey}',${idx},'duration',this.value)">
+        ${DURATIONS.map(d => `<option value="${d.label}" ${slot.duration===d.label?'selected':''}>${d.label||'— duration —'}</option>`).join('')}
+      </select>
+    </div>
+
+    <div class="end-time-cell">
+      <div class="end-time-val ${endEmpty?'empty':''}" id="end-${periodKey}-${idx}">${endVal}</div>
+    </div>
+
+    <div class="cell-wrap">
+      <input class="cell-input" type="text" placeholder="Notes..."
+        value="${esc(slot.notes)}"
+        onchange="updateSlot('${currentDate}','${periodKey}',${idx},'notes',this.value)">
+    </div>
+
+    <div>
+      <button class="clear-btn" onclick="clearSlot('${currentDate}','${periodKey}',${idx})" title="Clear">&#215;</button>
+    </div>
+  `;
+  return row;
+}
+
+function esc(s) {
+  return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ── TEACHER ───────────────────────────────────────────────────────────────
+let teacherSaveTimer;
+function saveTeacher() {
+  teacherName = document.getElementById('teacher-name').value;
+  saveLocal();
+  clearTimeout(teacherSaveTimer);
+  const badge = document.getElementById('teacher-saved');
+  badge.classList.add('show');
+  teacherSaveTimer = setTimeout(() => badge.classList.remove('show'), 1800);
+}
+
+// ── STUDENT DROPDOWN ──────────────────────────────────────────────────────
+function onStudentFocus(input) { showDropdown(input); }
+function onStudentInput(input) { showDropdown(input); }
+
+function showDropdown(input) {
+  const period = input.dataset.period;
+  const idx = parseInt(input.dataset.idx);
+  const q = input.value.trim().toLowerCase();
+  const ddId = `dd-${period}-${idx}`;
+  const dd = document.getElementById(ddId);
+  if (!dd) return;
+
+  document.querySelectorAll('.dropdown.open').forEach(d => { if (d.id !== ddId) d.classList.remove('open'); });
+
+  const filtered = q ? roster.filter(s => s.name.toLowerCase().includes(q)) : roster;
+  let html = '';
+
+  filtered.slice(0, 15).forEach(s => {
+    html += `<div class="dropdown-item" onmousedown="isSelectingStudent=true;selectStudent(event,'${period}',${idx},'${esc(s.name)}','${esc(s.grade)}',false)">
+      <span>${esc(s.name)}</span><span class="grade-tag">Gr ${esc(s.grade)}</span>
+    </div>`;
+  });
+
+  if (q && !roster.some(s => s.name.toLowerCase() === q)) {
+    html += `<div class="dropdown-item override-option" onmousedown="isSelectingStudent=true;selectStudent(event,'${period}',${idx},'${esc(input.value)}','',true)">
+      + Add "${esc(input.value)}" as override
+    </div>`;
+  }
+  if (!html) {
+    html = `<div class="dropdown-empty">No match — type to add override</div>`;
+    if (q) html += `<div class="dropdown-item override-option" onmousedown="isSelectingStudent=true;selectStudent(event,'${period}',${idx},'${esc(input.value)}','',true)">+ Add "${esc(input.value)}" as override</div>`;
+  }
+
+  dd.innerHTML = html;
+  dd.classList.add('open');
+}
+
+let isSelectingStudent = false;
+
+function selectStudent(e, period, idx, name, grade, isOverride) {
+  e.preventDefault();
+  isSelectingStudent = true;
+  lastEditTime = Date.now();
+  const slot = getDay(currentDate)[period][idx];
+  slot.student = name;
+  slot.grade = grade;
+  slot.override = isOverride;
+  if (!slot.teacher) slot.teacher = teacherName;
+  save();
+  pushSlotToSheet(period, idx);
+  renderPeriod(period);
+  updateSummary();
+  // Reset flag after render completes
+  setTimeout(() => { isSelectingStudent = false; }, 300);
+}
+
+function onStudentBlur(input) {
+  // If a dropdown selection is in progress, do nothing — selectStudent handles it
+  if (isSelectingStudent) return;
+  setTimeout(() => {
+    if (isSelectingStudent) return;
+    const period = input.dataset.period;
+    const idx = parseInt(input.dataset.idx);
+    const dd = document.getElementById(`dd-${period}-${idx}`);
+    if (dd) dd.classList.remove('open');
+    const slot = getDay(currentDate)[period][idx];
+    if (input.value !== slot.student) {
+      const inRoster = roster.find(s => s.name.toLowerCase() === input.value.trim().toLowerCase());
+      slot.student = input.value.trim();
+      slot.override = !inRoster && input.value.trim() !== '';
+      if (!slot.teacher) slot.teacher = teacherName;
+      save();
+      renderPeriod(period);
+      updateSummary();
+    }
+  }, 150);
+}
+
+function onStudentKey(e, input) {
+  const period = input.dataset.period;
+  const idx = parseInt(input.dataset.idx);
+  if (e.key === 'Escape') { const dd = document.getElementById(`dd-${period}-${idx}`); if(dd) dd.classList.remove('open'); }
+  if (e.key === 'Enter') input.blur();
+}
+
+// ── SUMMARY ───────────────────────────────────────────────────────────────
+function updateSummary() {
+  const day = getDay(currentDate);
+  let total = 0, overrides = 0;
+  const pc = {};
+  PERIODS.forEach(p => {
+    const occ = day[p.key].filter(s => s.student.trim()).length;
+    total += occ;
+    overrides += day[p.key].filter(s => s.override).length;
+    pc[p.key] = occ;
+  });
+  document.getElementById('day-summary').innerHTML = `
+    <div class="summary-pill">Total today: <span>${total}</span></div>
+    ${PERIODS.map(p => `<div class="summary-pill">${p.label}: <span>${pc[p.key]}</span></div>`).join('')}
+    ${overrides > 0 ? `<div class="summary-pill">Overrides: <span>${overrides}</span></div>` : ''}
+  `;
+}
+
+// ── HISTORY ───────────────────────────────────────────────────────────────
+function updateHistoryBar() {
+  const bar = document.getElementById('history-days');
+  const today = todayStr();
+  const days = [];
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(today + 'T12:00:00');
+    d.setDate(d.getDate() - i);
+    days.push(d.toISOString().split('T')[0]);
+  }
+  bar.innerHTML = days.map(d => {
+    const hasData = allData[d] && PERIODS.some(p => allData[d][p.key] && allData[d][p.key].some(s => s.student.trim()));
+    const isCurrent = d === currentDate;
+    return `<div class="history-day ${hasData?'has-data':''}"
+      style="${isCurrent?'background:var(--accent);color:white;border-color:var(--accent);':''}"
+      onclick="goDate('${d}')">${formatDateShort(d)}</div>`;
+  }).join('');
+}
+
+// ── PERIOD TOGGLE ─────────────────────────────────────────────────────────
+const collapsed = {};
+function togglePeriod(key) {
+  collapsed[key] = !collapsed[key];
+  const body = document.getElementById('body-' + key);
+  const toggle = document.getElementById('toggle-' + key);
+  if (body) body.style.display = collapsed[key] ? 'none' : '';
+  if (toggle) toggle.className = 'period-toggle' + (collapsed[key] ? ' collapsed' : '');
+}
+
+// ── DATE NAV ──────────────────────────────────────────────────────────────
+function changeDay(delta) {
+  const d = new Date(currentDate + 'T12:00:00');
+  d.setDate(d.getDate() + delta);
+  currentDate = d.toISOString().split('T')[0];
+  render();
+  syncDay();
+}
+function goToday() { currentDate = todayStr(); render(); syncDay(); }
+function goDate(d) { currentDate = d; render(); syncDay(); }
+function openDatePicker() {
+  const dp = document.getElementById('datepicker');
+  dp.style.cssText = 'position:fixed;top:50px;left:50%;opacity:1;pointer-events:auto;z-index:999;';
+  dp.showPicker ? dp.showPicker() : dp.click();
+}
+function pickDate(val) {
+  if (val) { currentDate = val; render(); }
+  document.getElementById('datepicker').style.cssText = 'position:absolute;opacity:0;pointer-events:none;width:1px;height:1px;';
+}
+
+// ── ROSTER MODAL ──────────────────────────────────────────────────────────
+function openRoster() {
+  document.getElementById('roster-textarea').value = roster.map(s => `${s.name} (${s.grade})`).join('\n');
+  updateRosterCount();
+  document.getElementById('roster-modal').classList.add('open');
+}
+function closeRoster() { document.getElementById('roster-modal').classList.remove('open'); }
+function updateRosterCount() {
+  const lines = document.getElementById('roster-textarea').value.split('\n').filter(l => l.trim());
+  document.getElementById('roster-count').textContent = lines.length + ' student' + (lines.length !== 1 ? 's' : '');
+}
+document.getElementById('roster-textarea').addEventListener('input', updateRosterCount);
+function saveRoster() {
+  const lines = document.getElementById('roster-textarea').value.split('\n').filter(l => l.trim());
+  roster = lines.map(line => {
+    const m = line.match(/^(.+?)\s*\((\w+)\)\s*$/);
+    return m ? { name: m[1].trim(), grade: m[2].trim() } : { name: line.trim(), grade: '' };
+  });
+  saveLocal();
+  setSyncStatus('syncing', 'Saving roster...');
+  apiCall({ action: 'saveRoster', roster: JSON.stringify(roster) }).then(data => {
+    if (data.error) { setSyncStatus('error', 'Roster save failed'); return; }
+    setSyncStatus('synced', 'Roster saved · ' + data.count + ' students');
+  });
+  closeRoster();
+}
+
+document.addEventListener('click', e => {
+  if (!e.target.closest('.student-input-wrap')) {
+    document.querySelectorAll('.dropdown.open').forEach(d => d.classList.remove('open'));
+  }
+});
+
+// ── INIT ──────────────────────────────────────────────────────────────────
+load();
+const tn = document.getElementById('teacher-name');
+if (tn) tn.value = teacherName;
+render();
+setSyncStatus('syncing', 'Loading roster...');
+// Load roster from Sheet first, then load today's data
+loadRosterFromSheet();
+syncDay();
+</script>
+</body>
+</html>
